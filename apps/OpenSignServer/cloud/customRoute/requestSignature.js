@@ -387,9 +387,10 @@ async function sendSigningMail(documentJson, signer) {
 }
 
 /**
- * Create a draft contracts_Document for external integrations.
+ * Create a contracts_Document for external integrations.
  * With template_id: copies that template's Placeholders onto the new PDF.
- * With send=true (and template_id): marks the document sent and emails signers.
+ * With send=true: marks the document sent and emails signers.
+ * send does not require template_id.
  */
 async function handleRequestSignature(req, res) {
   try {
@@ -442,13 +443,6 @@ async function handleRequestSignature(req, res) {
         message: 'PDF file is required (multipart field "file" or JSON fileBase64).',
       });
     }
-    if (autoSend && !templateId) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'send=true requires template_id so signature fields can be applied automatically.',
-      });
-    }
-
     let template = null;
     let placeholders = null;
     if (templateId) {
@@ -586,7 +580,7 @@ async function handleRequestSignature(req, res) {
       });
     }
 
-    if (autoSend && placeholders) {
+    if (autoSend) {
       const expiry = new Date();
       expiry.setDate(expiry.getDate() + resolvedDays);
       doc.set('SignedUrl', fileUrl);
@@ -620,7 +614,7 @@ async function handleRequestSignature(req, res) {
         })) || [];
 
     let emailsSent = [];
-    if (autoSend && placeholders) {
+    if (autoSend) {
       // Reload with includes for mail templates / signer details
       const sentQuery = new Parse.Query('contracts_Document');
       sentQuery.equalTo('objectId', saved.id);
@@ -630,10 +624,12 @@ async function handleRequestSignature(req, res) {
       const sentDoc = await sentQuery.first({ useMasterKey: true });
       const documentJson = JSON.parse(JSON.stringify(sentDoc));
 
-      let mailTargets = (documentJson.Placeholders || [])
-        .filter(item => item?.Role !== 'prefill' && item?.signerObjId)
-        .map(item => (documentJson.Signers || []).find(s => s.objectId === item.signerObjId))
-        .filter(Boolean);
+      let mailTargets = placeholders
+        ? (documentJson.Placeholders || [])
+            .filter(item => item?.Role !== 'prefill' && item?.signerObjId)
+            .map(item => (documentJson.Signers || []).find(s => s.objectId === item.signerObjId))
+            .filter(Boolean)
+        : (documentJson.Signers || []).filter(signer => signer?.Email);
 
       if (documentJson.SendinOrder) {
         mailTargets = mailTargets.slice(0, 1);
@@ -675,13 +671,14 @@ async function handleRequestSignature(req, res) {
       })),
     };
 
-    if (autoSend && placeholders) {
+    if (autoSend) {
       return res.status(201).json({
         ...baseResponse,
         sent: true,
         emails_sent: emailsSent,
-        message:
-          'Document created from template and sent. Signers have been emailed (or the first signer if send_in_order is true).',
+        message: placeholders
+          ? 'Document created from template and sent. Signers have been emailed (or the first signer if send_in_order is true).'
+          : 'Document created and sent. Signers have been emailed (or the first signer if send_in_order is true).',
       });
     }
 
