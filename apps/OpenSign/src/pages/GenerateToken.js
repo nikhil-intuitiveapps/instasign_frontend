@@ -147,9 +147,11 @@ const GenerateToken = () => {
               </h2>
               <p className="text-sm opacity-80 mb-3">
                 From another project, upload a PDF and receiver email with your
-                API token. Pass <code>template_id</code> to reuse a saved field
-                layout (offer letter, exit letter, etc.). Without it you get a{" "}
-                <code>prepare_url</code> to place fields manually.
+                API token. Pass <code>send=true</code> to email signers
+                immediately. Pass <code>template_id</code> to reuse a saved
+                field layout (offer letter, exit letter, etc.). Without a
+                template, <code>prepare_url</code> is where fields can be
+                placed.
               </p>
               <pre className="bg-base-200 rounded-box p-3 text-xs overflow-x-auto whitespace-pre-wrap">
 {`POST ${apiBase || "https://dev.instasign.ai/app/v1"}/request-signature
@@ -158,6 +160,9 @@ Header: x-api-token: <your-token>
 Single receiver (form-data):
 file, email, name, phone, document_name, kyc_required, send_in_order
 optional: template_id, role, send
+
+send=true  → mark sent and email signers immediately (template_id optional)
+send=false → create a draft; open prepare_url to place or review fields
 
 With layout template (form-data):
 file, template_id, receivers (JSON), document_name
