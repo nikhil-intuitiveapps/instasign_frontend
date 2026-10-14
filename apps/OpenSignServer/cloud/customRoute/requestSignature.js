@@ -387,10 +387,11 @@ async function sendSigningMail(documentJson, signer) {
 }
 
 /**
- * Create a contracts_Document for external integrations.
+ * Create a draft contracts_Document for external integrations.
  * With template_id: copies that template's Placeholders onto the new PDF.
- * With send=true: marks the document sent and emails signers.
- * send does not require template_id.
+ * With send=true (and template_id): marks the document sent and emails signers.
+ * Without template_id: returns prepare_url so fields can be placed, then sent.
+ * Documents default to send_in_order=true so only the first signer is emailed first.
  */
 async function handleRequestSignature(req, res) {
   try {
@@ -415,6 +416,7 @@ async function handleRequestSignature(req, res) {
     const sendInOrderBody = req.body.send_in_order ?? req.body.sendInOrder ?? req.body.SendinOrder;
     const sendInOrderProvided =
       sendInOrderBody !== undefined && sendInOrderBody !== null && sendInOrderBody !== '';
+    // Integration docs always sign in order unless the caller explicitly opts out.
     const sendInOrder = parseBoolean(sendInOrderBody, true);
     const autoSend = parseBoolean(req.body.send ?? req.body.auto_send ?? req.body.autoSend, false);
     const templateId = (
@@ -443,6 +445,13 @@ async function handleRequestSignature(req, res) {
         message: 'PDF file is required (multipart field "file" or JSON fileBase64).',
       });
     }
+    if (autoSend && !templateId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'send=true requires template_id so signature fields can be applied automatically.',
+      });
+    }
+
     let template = null;
     let placeholders = null;
     if (templateId) {
@@ -508,11 +517,8 @@ async function handleRequestSignature(req, res) {
     }
 
     const ownerId = extUser.get('UserId')?.id || extUser.get('UserId')?.objectId;
-    const resolvedSendInOrder = sendInOrderProvided
-      ? sendInOrder
-      : template
-        ? Boolean(template.get('SendinOrder'))
-        : true;
+    // Prefer explicit request value; otherwise always sign in order for this API.
+    const resolvedSendInOrder = sendInOrderProvided ? sendInOrder : true;
     const resolvedDays = Number.isFinite(timeToCompleteDays)
       ? timeToCompleteDays
       : template?.get('TimeToCompleteDays') || 15;
@@ -580,7 +586,7 @@ async function handleRequestSignature(req, res) {
       });
     }
 
-    if (autoSend) {
+    if (autoSend && placeholders) {
       const expiry = new Date();
       expiry.setDate(expiry.getDate() + resolvedDays);
       doc.set('SignedUrl', fileUrl);
@@ -614,7 +620,7 @@ async function handleRequestSignature(req, res) {
         })) || [];
 
     let emailsSent = [];
-    if (autoSend) {
+    if (autoSend && placeholders) {
       // Reload with includes for mail templates / signer details
       const sentQuery = new Parse.Query('contracts_Document');
       sentQuery.equalTo('objectId', saved.id);
@@ -624,13 +630,12 @@ async function handleRequestSignature(req, res) {
       const sentDoc = await sentQuery.first({ useMasterKey: true });
       const documentJson = JSON.parse(JSON.stringify(sentDoc));
 
-      let mailTargets = placeholders
-        ? (documentJson.Placeholders || [])
-            .filter(item => item?.Role !== 'prefill' && item?.signerObjId)
-            .map(item => (documentJson.Signers || []).find(s => s.objectId === item.signerObjId))
-            .filter(Boolean)
-        : (documentJson.Signers || []).filter(signer => signer?.Email);
+      let mailTargets = (documentJson.Placeholders || [])
+        .filter(item => item?.Role !== 'prefill' && item?.signerObjId)
+        .map(item => (documentJson.Signers || []).find(s => s.objectId === item.signerObjId))
+        .filter(Boolean);
 
+      // Sign-in-order: email only the first signer; next gets mail after they finish.
       if (documentJson.SendinOrder) {
         mailTargets = mailTargets.slice(0, 1);
       }
@@ -671,14 +676,13 @@ async function handleRequestSignature(req, res) {
       })),
     };
 
-    if (autoSend) {
+    if (autoSend && placeholders) {
       return res.status(201).json({
         ...baseResponse,
         sent: true,
         emails_sent: emailsSent,
-        message: placeholders
-          ? 'Document created from template and sent. Signers have been emailed (or the first signer if send_in_order is true).'
-          : 'Document created and sent. Signers have been emailed (or the first signer if send_in_order is true).',
+        message:
+          'Document created from template and sent. The first signer has been emailed; remaining signers are emailed in order after each completes.',
       });
     }
 

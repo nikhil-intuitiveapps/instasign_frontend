@@ -50,7 +50,7 @@ const Forms = (props) => {
     Description: "",
     Note: "",
     TimeToCompleteDays: 15,
-    SendinOrder: "false",
+    SendinOrder: "true",
     password: "",
     file: "",
     remindOnceInEvery: 5,
@@ -521,7 +521,7 @@ const Forms = (props) => {
           ? "Note to myself"
           : "Please review and sign this document",
       TimeToCompleteDays: 15,
-      SendinOrder: "false",
+      SendinOrder: "true",
       password: "",
       file: "",
       remindOnceInEvery: 5,
