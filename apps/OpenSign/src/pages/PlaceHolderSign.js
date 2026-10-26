@@ -1029,7 +1029,7 @@ function PlaceHolderSign() {
 
         // const signerEmails = signersdata.filter((signer) => signer.Role !== "prefill");
       
-      // Make API call to the endpoint
+      // Create the document only after /signed/document succeeds
       try {
         const response = await axios.post(`${djangoUrl}/base/api/v1/signed/document/`, {
           signers: signerEmails,
@@ -1040,18 +1040,22 @@ function PlaceHolderSign() {
             "Authorization": `Bearer ${localStorage.getItem("django")}`
           }
         });
-        
-        if (response.status !== 200) {
+
+        const isSuccess = response.status >= 200 && response.status < 300;
+        if (!isSuccess) {
           console.error('Error response from signed document API:', response.data);
+          alert(t("something-went-wrong-mssg"));
+          return;
         }
-        
-        // Continue with the original functionality regardless of API response
+
         saveDocumentDetails();
-        
       } catch (error) {
         console.error('Error calling signed document API:', error);
-        // Continue with original functionality even if API call fails
-        saveDocumentDetails();
+        const apiMessage =
+          error?.response?.data?.message ||
+          error?.response?.data?.detail ||
+          error?.response?.data?.error;
+        alert(apiMessage || t("something-went-wrong-mssg"));
       }
     }
   };
