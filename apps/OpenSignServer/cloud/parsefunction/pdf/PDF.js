@@ -15,7 +15,7 @@ import { Placeholder } from './Placeholder.js';
 import { SignPdf } from '@signpdf/signpdf';
 import { P12Signer } from '@signpdf/signer-p12';
 
-const serverUrl = cloudServerUrl; // process.env.SERVER_URL;
+const serverUrl = process.env.SERVER_URL || cloudServerUrl;
 const APPID = process.env.APP_ID;
 const masterKEY = process.env.MASTER_KEY;
 const eSignName = 'InstaSign';
@@ -2307,7 +2307,9 @@ async function PDF(req) {
             signUser.objectId,
             updatedDoc?.AuditTrail || updateAuditTrail
           );
-          fs.unlinkSync(pfxname);
+          if (fs.existsSync(pfxname)) {
+      fs.unlinkSync(pfxname);
+    }
         }
         // `fs.unlinkSync` is used to remove exported signed pdf file from exports folder
         fs.unlinkSync(signedFilePath);
@@ -2335,7 +2337,9 @@ async function PDF(req) {
     } catch (err) {
       console.log('err in saving debugginglog', err);
     }
-    fs.unlinkSync(pfxname);
+    if (fs.existsSync(pfxname)) {
+      fs.unlinkSync(pfxname);
+    }
     throw err;
   }
 }
