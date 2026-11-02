@@ -21,8 +21,10 @@ export default async function getDocument(request) {
         if (res) {
           const IsEnableOTP = res?.get('IsEnableOTP') || false;
           const document = JSON.parse(JSON.stringify(res));
-          delete document.ExtUserPtr.TenantId.FileAdapters;
-          delete document?.ExtUserPtr?.TenantId?.PfxFile;
+          if (document?.ExtUserPtr?.TenantId) {
+            delete document.ExtUserPtr.TenantId.FileAdapters;
+            delete document.ExtUserPtr.TenantId.PfxFile;
+          }
           if (!IsEnableOTP) {
             return document;
           } else {
@@ -54,7 +56,7 @@ export default async function getDocument(request) {
         }
       } catch (err) {
         console.log('err', err);
-        return err;
+        return { error: err?.message || "You don't have access of this document!" };
       }
     } else {
       return { error: 'Please pass required parameters!' };
