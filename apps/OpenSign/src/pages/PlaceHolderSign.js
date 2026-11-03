@@ -3469,7 +3469,7 @@ function PlaceHolderSign() {
                                     className="op-link op-link-accent text-sm"
                                     onClick={() => setIsCustomize(!isCustomize)}
                                   >
-                                    {t("cutomize-email")}
+                                    {t("customize-email")}
                                   </span>
                                 )
                             }
